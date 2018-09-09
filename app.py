@@ -12,12 +12,18 @@ import plotly.graph_objs as go
 app = dash.Dash()
 server = app.server
 
+df_state = pd.read_csv('data/state_clean.csv', index_col='state')
+usa_row = df_state.iloc[0]
+df_state.drop('United States', inplace=True)
 df_gv = pd.read_csv('data/gun_violence_clean.csv')
-df_state = pd.read_csv('data/state_clean.csv', index_col='name')
+df_gv['date'] = pd.to_datetime(df_gv['date'])
 
 mapbox_access_token = os.environ['MAPBOX_ACCESS_TOKEN']
 
 def lookup(state, feature, years=range(2014, 2018)):
+    '''
+    Returns a list of the feature/state requested from df_state
+    '''
     return [df_state.loc[state, f'{feature}{year}'] for year in years]
 
 app.layout = html.Div([
@@ -95,7 +101,7 @@ app.layout = html.Div([
                 dcc.Dropdown(
                     id='incident-dropdown-state',
                     options=[{'label': i, 'value': i} for i in df_state.index],
-                    value='Nevada',
+                    value='Arizona',
                 ),
             style={'width': '50%', 'display': 'inline-block'}
             ),
@@ -105,7 +111,7 @@ app.layout = html.Div([
                     id='incident-checklist-year',
                     options=[{'label': i, 'value': i} for i in
                         range(2014, 2019)],
-                    values=[2018]
+                    values=[2017]
                 ),
             style={'width': '50%', 'float': 'right'}
             )
@@ -127,12 +133,13 @@ app.css.append_css({
 
 @app.callback(
     Output('choropleth-plot', 'figure'),
-    [Input('choropleth-dropdown-feature', 'value')])
-def choropleth_plot(feature):
+    [Input('choropleth-slider-year', 'value')])
+def choropleth_plot(year):
     '''
     Returns a plotly figure for the main state choropleth
     '''
-    data = [{
+    df = df_state.copy()
+    data=[{
         'type': 'choropleth',
         'locationmode': 'USA-states',
     }]
@@ -181,26 +188,45 @@ Cats are kewl
     Output('incident-plot', 'figure'),
     [Input('incident-dropdown-state', 'value'),
     Input('incident-checklist-year', 'values')])
-def incident_plot(state, year):
+def incident_plot(state, years):
     '''
     Returns figure for the main Mapbox
     '''
-    data = [go.Scattermapbox(
-        lat=[39.73, 39.74],
-        lon=[-104.99, -105.00],
-        mode='markers',
-        marker={'size': 9, 'color': 'black'},
-        text='Denver'
-    )]
+    years.sort()
+
+    df = df_gv.copy()
+    df = df[df['state']==state]
+
+    colors = ['red', 'orange', 'green', 'blue', 'purple']
+    center = df_state.loc[state, 'center']
+    lat, lon = [float(i) for i in center.split(',')]
+    center = {'lat': lat, 'lon': lon}
+
+    data = []
+    for year in years:
+        df_year = df[df['date'].apply(lambda x: x.year==year)]
+        data.append(go.Scattermapbox(
+            lat=df_year['latitude'],
+            lon=df_year['longitude'],
+            text=df_year['notes'],
+            mode='markers',
+            name=year,
+            marker={
+                'size': 7,
+                'color': colors.pop(0),
+                'opacity': 0.6
+            },
+        ))
 
     layout = go.Layout(
         margin={'l': 10, 'b': 20, 't': 0, 'r': 10},
         autosize=True,
-        mapbox=dict(
-            accesstoken=mapbox_access_token,
-            center={'lat': 39.73, 'lon': -104.99},
-            zoom=10
-        )
+        mapbox={
+            'accesstoken': mapbox_access_token,
+            'center':center,
+            'zoom': 8,
+            'style': 'light'
+        }
     )
 
     return {'data': data, 'layout': layout}
@@ -217,9 +243,7 @@ def incident_info(hoverData):
     killed = 'Killed: 5'
     injured = 'Injured: 13'
     guntype = 'Guntype: Pistol'
-    hover_text = str(hoverData['points'][0]['lat'])
-    print(hover_text)
-    text = '\n'.join([killed, injured, guntype, hover_text])
+    text = '\n'.join([killed, injured, guntype])
     return text
 
 @app.callback(
