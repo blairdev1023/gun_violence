@@ -26,6 +26,21 @@ def lookup(state, feature, years=range(2014, 2018)):
     '''
     return [df_state.loc[state, f'{feature}{year}'] for year in years]
 
+def generate_table(dataframe, max_rows=10):
+    '''
+    Returns a html Table of a pandas df
+    '''
+
+    return html.Table(
+        # Header
+        [html.Tr([html.Th(col) for col in dataframe.columns])] +
+
+        # Body
+        [html.Tr([
+            html.Td(dataframe.iloc[i][col]) for col in dataframe.columns
+        ]) for i in range(min(len(dataframe), max_rows))]
+    )
+
 app.layout = html.Div([
     html.H1('U.S. Gun Violence 2014-2018', style={'textAlign': 'center'}),
     # State Choropleth
@@ -43,7 +58,7 @@ app.layout = html.Div([
                     value=2017,
                     marks={str(i) : str(i) for i in range(2014, 2018)}
                 ),
-            style={'margin-left': '5%', 'margin-right': '5%'}
+            style={'margin-left': '15%', 'margin-right': '15%'}
             )
         ], style={'width': '75%', 'display': 'inline-block'}),
         # Side Plot, Selectors, Notes Box
@@ -60,52 +75,9 @@ app.layout = html.Div([
                 options=[{'label':i,'value':i} for i in ['Raw', 'Per 100,000']],
                 value='Per 100,000'
             ),
-            dcc.Textarea(
-                id='choropleth-totals',
-                readOnly=True,
-                wrap=True,
-                style={'width': '100%', 'height': 150}
-            )
+            html.Div(id='choropleth-totals', style={'height': 200, 'overflowY': 'scroll', 'display': 'inline-block'})
         ], style={'width': '25%', 'height': 500, 'display': 'inline-block'}
         )
-        # Selectors
-        # # Year Slider
-        # html.Div(
-        #     dcc.Slider(
-        #         id='choropleth-slider-year',
-        #         min=2014,
-        #         max=2017,
-        #         step=1,
-        #         value=2017,
-        #         marks={str(i) : str(i) for i in range(2014, 2018)}
-        #     ),
-        # style={
-        #     'width': '30%',
-        #     'display': 'inline-block',
-        #     'margin-left': '5%',
-        #     'margin-right': '5%',
-        #     'vertical-align': 'middle'
-        # }
-        # ),
-        # # Metric Radio
-        # html.Div(
-        #     dcc.RadioItems(
-        #         id='choropleth-radio-metric',
-        #         options=[{'label':i,'value':i} for i in ['Raw', 'Per 100,000']],
-        #         value='Per 100,000'
-        #     ),
-        # style={'width': '30%', 'display': 'inline-block'}
-        # ),
-        # # Feature Dropdwon
-        # html.Div(
-        #     dcc.Dropdown(
-        #         id='choropleth-dropdown-feature',
-        #         options=[{'label': i, 'value': i} for i in
-        #             ['Killed', 'Injured', 'Total']],
-        #         value='Killed'
-        #     ),
-        # style={'width': '30%', 'display': 'inline-block', 'float': 'right'}
-        # ),
     ]),
     # Individual Incidents
     html.Div([
@@ -171,8 +143,9 @@ app.css.append_css({
 @app.callback(
     Output('choropleth-plot', 'figure'),
     [Input('choropleth-slider-year', 'value'),
-    Input('choropleth-dropdown-feature', 'value')])
-def choropleth_plot(year, feature):
+    Input('choropleth-dropdown-feature', 'value'),
+    Input('choropleth-radio-metric', 'value')])
+def choropleth_plot(year, feature, metric):
     '''
     Returns a plotly figure for the main state choropleth
     '''
@@ -180,12 +153,19 @@ def choropleth_plot(year, feature):
            [0.4, 'rgb(188,189,220)'], [0.6, 'rgb(158,154,200)'],
            [0.8, 'rgb(117,107,177)'], [1.0, 'rgb(84,39,143)']]
 
+    # Checks type of feature
     if feature != 'Total':
         z = df_state[feature.lower() + str(year)]
     else:
         z = df_state['killed' + str(year)] + df_state['injured' + str(year)]
 
-    data=[dict(
+    # Checks metric
+    if metric == 'Per 100,000':
+        pop = df_state['popestimate' + str(year)]
+        z = z / (pop / 100000)
+        z = z.round(2)
+
+    data = [dict(
         type='choropleth',
         colorscl=scl,
         autocolorscale=False,
@@ -193,7 +173,10 @@ def choropleth_plot(year, feature):
         locations=df_state['code'],
         z=z,
         text=df_state.index,
-        colorbar={'title': feature}
+        colorbar={
+            'title': feature,
+            'x': 0
+        }
     )]
 
     layout = go.Layout(
@@ -208,32 +191,66 @@ def choropleth_plot(year, feature):
 
 @app.callback(
     Output('choropleth-trend', 'figure'),
-    [Input('choropleth-plot', 'hoverData')])
-def choropleth_trend(hoverData):
+    [Input('choropleth-dropdown-feature', 'value'),
+    Input('choropleth-radio-metric', 'value'),
+    Input('choropleth-plot', 'hoverData')])
+def choropleth_trend(feature, metric, hoverData):
     '''
     This function will return a plotly figure
 
     This figure will have a trace for each requested feature aggregated by state
     '''
-    data = []
+    # Checks if user has hovered yet
+    if type(hoverData) == dict:
+        hover_state = hoverData['points'][0]['text']
+    else:
+        hover_state = 'Arizona'
+
+    y = lookup(hover_state, feature.lower())
+    if metric == 'Per 100,000':
+        pop = np.array(lookup(hover_state, 'popestimate'))
+        y = np.array(y) / (pop / 100000)
+
+    data = [go.Scatter(
+        x=list(range(2014, 2018)),
+        y=y,
+    )]
+
     layout = go.Layout(
-        height=250,
+        height=200,
         margin={'l': 20, 'b': 20, 't': 5, 'r': 5},
     )
     return {'data': data, 'layout': layout}
 
 @app.callback(
-    Output('choropleth-totals', 'value'),
-    [Input('choropleth-plot', 'hoverData')])
-def choropleth_totals(hoverData):
+    Output('choropleth-totals', 'children'),
+    [Input('choropleth-plot', 'hoverData'),
+    Input('choropleth-slider-year', 'value')])
+def choropleth_totals(hoverData, year):
     '''
     This function will return the totals info for the hover-on state
     '''
-    return '''Meow
-Cats Are Cute, the cutest animals in all the world, is this wrapping?
-Cats are kewl
-    '''
+    # Checks if user has hovered yet
+    if type(hoverData) == dict:
+        hover_state = hoverData['points'][0]['text']
+    else:
+        hover_state = 'Arizona'
 
+    row = df_state.loc[hover_state]
+    killed = row[f'killed{year}']
+    injured = row[f'injured{year}']
+    total = killed + injured
+    pop = row[f'popestimate{year}']
+
+    raw = [killed, injured, total]
+    per = np.round(np.array(raw) / (pop / 100000), 2)
+    idxs = ['Killed' , 'Injured', 'Total']
+
+    df = pd.DataFrame(data={' ': idxs, 'Raw': raw, 'Per 100,000': per})
+
+    table = generate_table(df)
+    table.style = {'height': 50, 'width': '50%', 'overflowY': 'scroll'}
+    return table
 
 @app.callback(
     Output('incident-plot', 'figure'),
