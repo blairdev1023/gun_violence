@@ -13,13 +13,10 @@ app = dash.Dash()
 server = app.server
 
 df_state = pd.read_csv('data/state_clean.csv', index_col='state')
-print(df_state.columns)
 usa_row = df_state.iloc[0]
 df_state.drop('United States', inplace=True)
 df_gv = pd.read_csv('data/gun_violence_clean.csv')
 df_gv['date'] = pd.to_datetime(df_gv['date'])
-print(df_state.columns)
-
 
 mapbox_access_token = os.environ['MAPBOX_ACCESS_TOKEN']
 
@@ -36,41 +33,79 @@ app.layout = html.Div([
         html.H2('Incidents by State', style={'textAlign': 'center'}),
         # Main Plot
         html.Div([
-            dcc.Graph(id='choropleth-plot', config={'displayModeBar': False})
-        ], style={'width': '70%', 'display': 'inline-block'}),
-        # Side Plot and Totals Info
+            dcc.Graph(id='choropleth-plot', config={'displayModeBar': False}),
+            html.Div(
+                dcc.Slider(
+                    id='choropleth-slider-year',
+                    min=2014,
+                    max=2017,
+                    step=1,
+                    value=2017,
+                    marks={str(i) : str(i) for i in range(2014, 2018)}
+                ),
+            style={'margin-left': '5%', 'margin-right': '5%'}
+            )
+        ], style={'width': '75%', 'display': 'inline-block'}),
+        # Side Plot, Selectors, Notes Box
         html.Div([
             dcc.Graph(id='choropleth-trend', config={'displayModeBar': False}),
-            dcc.Textarea(
-                id='choropleth-totals',
-                readOnly=True,
-                wrap=True,
-                style={'width': '100%', 'height': 250}
-            )
-        ], style={'width': '30%', 'height': 500, 'display': 'inline-block'}),
-        # Selectors
-        # Year Slider
-        html.Div(
-            dcc.Slider(
-                id='choropleth-slider-year',
-                min=2014,
-                max=2017,
-                step=1,
-                value=2017,
-                marks={str(i) : str(i) for i in range(2014, 2018)}
-            ),
-        style={'width': '40%',  'display': 'inline-block', 'margin-left': '10%'}
-        ),
-        # Feature Dropdwon
-        html.Div(
             dcc.Dropdown(
                 id='choropleth-dropdown-feature',
                 options=[{'label': i, 'value': i} for i in
                     ['Killed', 'Injured', 'Total']],
-                value='Killed'
+                value='Killed',
             ),
-        style={'width': '30%', 'display': 'inline-block', 'float': 'right'}
-        ),
+            dcc.RadioItems(
+                id='choropleth-radio-metric',
+                options=[{'label':i,'value':i} for i in ['Raw', 'Per 100,000']],
+                value='Per 100,000'
+            ),
+            dcc.Textarea(
+                id='choropleth-totals',
+                readOnly=True,
+                wrap=True,
+                style={'width': '100%', 'height': 150}
+            )
+        ], style={'width': '25%', 'height': 500, 'display': 'inline-block'}
+        )
+        # Selectors
+        # # Year Slider
+        # html.Div(
+        #     dcc.Slider(
+        #         id='choropleth-slider-year',
+        #         min=2014,
+        #         max=2017,
+        #         step=1,
+        #         value=2017,
+        #         marks={str(i) : str(i) for i in range(2014, 2018)}
+        #     ),
+        # style={
+        #     'width': '30%',
+        #     'display': 'inline-block',
+        #     'margin-left': '5%',
+        #     'margin-right': '5%',
+        #     'vertical-align': 'middle'
+        # }
+        # ),
+        # # Metric Radio
+        # html.Div(
+        #     dcc.RadioItems(
+        #         id='choropleth-radio-metric',
+        #         options=[{'label':i,'value':i} for i in ['Raw', 'Per 100,000']],
+        #         value='Per 100,000'
+        #     ),
+        # style={'width': '30%', 'display': 'inline-block'}
+        # ),
+        # # Feature Dropdwon
+        # html.Div(
+        #     dcc.Dropdown(
+        #         id='choropleth-dropdown-feature',
+        #         options=[{'label': i, 'value': i} for i in
+        #             ['Killed', 'Injured', 'Total']],
+        #         value='Killed'
+        #     ),
+        # style={'width': '30%', 'display': 'inline-block', 'float': 'right'}
+        # ),
     ]),
     # Individual Incidents
     html.Div([
@@ -150,7 +185,6 @@ def choropleth_plot(year, feature):
     else:
         z = df_state['killed' + str(year)] + df_state['injured' + str(year)]
 
-    print(df_state.columns)
     data=[dict(
         type='choropleth',
         colorscl=scl,
@@ -171,7 +205,6 @@ def choropleth_plot(year, feature):
     )
 
     return {'data': data, 'layout': layout}
-
 
 @app.callback(
     Output('choropleth-trend', 'figure'),
