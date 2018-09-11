@@ -13,10 +13,13 @@ app = dash.Dash()
 server = app.server
 
 df_state = pd.read_csv('data/state_clean.csv', index_col='state')
+print(df_state.columns)
 usa_row = df_state.iloc[0]
 df_state.drop('United States', inplace=True)
 df_gv = pd.read_csv('data/gun_violence_clean.csv')
 df_gv['date'] = pd.to_datetime(df_gv['date'])
+print(df_state.columns)
+
 
 mapbox_access_token = os.environ['MAPBOX_ACCESS_TOKEN']
 
@@ -64,7 +67,6 @@ app.layout = html.Div([
                 id='choropleth-dropdown-feature',
                 options=[{'label': i, 'value': i} for i in
                     ['Killed', 'Injured', 'Total']],
-                multi=True,
                 value='Killed'
             ),
         style={'width': '30%', 'display': 'inline-block', 'float': 'right'}
@@ -133,16 +135,32 @@ app.css.append_css({
 
 @app.callback(
     Output('choropleth-plot', 'figure'),
-    [Input('choropleth-slider-year', 'value')])
-def choropleth_plot(year):
+    [Input('choropleth-slider-year', 'value'),
+    Input('choropleth-dropdown-feature', 'value')])
+def choropleth_plot(year, feature):
     '''
     Returns a plotly figure for the main state choropleth
     '''
-    df = df_state.copy()
-    data=[{
-        'type': 'choropleth',
-        'locationmode': 'USA-states',
-    }]
+    scl = [[0.0, 'rgb(242,240,247)'], [0.2, 'rgb(218,218,235)'],
+           [0.4, 'rgb(188,189,220)'], [0.6, 'rgb(158,154,200)'],
+           [0.8, 'rgb(117,107,177)'], [1.0, 'rgb(84,39,143)']]
+
+    if feature != 'Total':
+        z = df_state[feature.lower() + str(year)]
+    else:
+        z = df_state['killed' + str(year)] + df_state['injured' + str(year)]
+
+    print(df_state.columns)
+    data=[dict(
+        type='choropleth',
+        colorscl=scl,
+        autocolorscale=False,
+        locationmode='USA-states',
+        locations=df_state['code'],
+        z=z,
+        text=df_state.index,
+        colorbar={'title': feature}
+    )]
 
     layout = go.Layout(
         margin={'l': 10, 'b': 20, 't': 0, 'r': 10},
@@ -254,6 +272,7 @@ def incident_notes(hoverData):
     This will be a function for returning the notes of the incident
     '''
     return 'Someone shot some people'
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
