@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import json
 
 import dash
 import dash_auth
@@ -15,7 +16,7 @@ server = app.server
 df_state = pd.read_csv('data/state_clean.csv', index_col='state')
 usa_row = df_state.iloc[0]
 df_state.drop('United States', inplace=True)
-df_gv = pd.read_csv('data/gun_violence_clean.csv')
+df_gv = pd.read_csv('data/gun_violence_clean.csv', index_col='incident_id')
 df_gv['date'] = pd.to_datetime(df_gv['date'])
 
 mapbox_access_token = os.environ['MAPBOX_ACCESS_TOKEN']
@@ -258,7 +259,7 @@ def choropleth_totals(hoverData, year):
     Input('incident-checklist-year', 'values')])
 def incident_plot(state, years):
     '''
-    Returns figure for the main Mapbox
+    Returns figure for the main Individual Incidents Mapbox
     '''
     years.sort()
 
@@ -270,13 +271,18 @@ def incident_plot(state, years):
     lat, lon = [float(i) for i in center.split(',')]
     center = {'lat': lat, 'lon': lon}
 
+
     data = []
     for year in years:
         df_year = df[df['date'].apply(lambda x: x.year==year)]
+        text = 'ID: ' + df_year.index.astype(str) + '<br>' + \
+            df_year['address'].fillna('') +  '<br>' + \
+            df_year['location_description'].fillna('')
         data.append(go.Scattermapbox(
             lat=df_year['latitude'],
             lon=df_year['longitude'],
-            text=df_year['notes'],
+            hoverinfo='text',
+            text=text,
             mode='markers',
             name=year,
             marker={
@@ -308,10 +314,37 @@ def incident_info(hoverData):
 
     Right now it doesn't work until the user hovers over a marker
     '''
-    killed = 'Killed: 5'
-    injured = 'Injured: 13'
-    guntype = 'Guntype: Pistol'
-    text = '\n'.join([killed, injured, guntype])
+    # check for initial hover
+    if type(hoverData) != dict:
+        return "Hover over a marker to read incident notes"
+    else:
+        hovertext = hoverData['points'][0]['text']
+        id =int(hovertext.split('<br>')[0].split()[1])
+        row = df_gv.loc[id]
+
+    # date, killed, injured, participants, victims
+    text = 'Date:\t' + str(row['date'])[:-9] + '\n' + \
+           'Killed:\t' + str(row['n_killed']) + '\n' + \
+           'Injured:\t' + str(row['n_injured']) + '\n\n'
+    # gun type
+    if type(row['gun_type']) == str:
+        text += 'Gun Type: ' + row['gun_type'] + '\n'
+    else:
+        text += 'Gun Type: Unknown\n'
+
+    # participants
+    if type(row['participant_age']) == str:
+        text += 'Participants: ' + \
+                str(len(row['participant_age'].split(','))) + '\n'
+        text += 'Participant Age: ' + \
+                row['participant_age'].replace(',', ', ') + '\n'
+    else:
+        text += 'Participants: Unknown\n'
+        text += 'Participant Age: Unknown\n'
+
+    # url
+    text += '\n' + 'URL: ' + row['incident_url']
+
     return text
 
 @app.callback(
@@ -321,8 +354,17 @@ def incident_notes(hoverData):
     '''
     This will be a function for returning the notes of the incident
     '''
-    return 'Someone shot some people'
+    if type(hoverData) != dict:
+        return "Hover over a marker for more info"
+    else:
+        hovertext = hoverData['points'][0]['text']
+        id =int(hovertext.split('<br>')[0].split()[1])
+        row = df_gv.loc[id]
 
+    notes = row['notes']
+    if type(notes) != str:
+        return 'No notes for this incident'
+    return notes
 
 if __name__ == '__main__':
     app.run_server(debug=True)
