@@ -50,7 +50,11 @@ app.layout = html.Div([
         html.H5(id='choropleth-title', style={'textAlign': 'center'}),
         # Main Plot
         html.Div([
-            dcc.Graph(id='choropleth-plot', config={'displayModeBar': False}),
+            dcc.Graph(
+                id='choropleth-plot',
+                config={'displayModeBar': False},
+                hoverData={'points': [{'text': 'Colorado'}]}
+            ),
             html.Div(
                 dcc.Slider(
                     id='choropleth-slider-year',
@@ -76,20 +80,42 @@ app.layout = html.Div([
                 options=[{'label':i,'value':i} for i in ['Raw', 'Per 100,000']],
                 value='Per 100,000'
             ),
-            html.Br(),
             dcc.Graph(id='choropleth-trend', config={'displayModeBar': False}),
             html.Div(
                 id='choropleth-totals',
-                style={'height': 200, 'overflowY': 'scroll'})
-        ], style={'width': '25%', 'height': 500, 'display': 'inline-block'}
+                style={
+                    'height': 200,
+                    'overflowY': 'scroll',
+                    'margin-left': 10,
+                    # 'margin-right': 'auto'
+                })
+        ], style={
+            'width': '24%',
+            'height': 500,
+            'display': 'inline-block',
+            'borderStyle': 'solid',
+            'borderColor': 'black',
+        }
         )
     ]),
+    html.Br(),
     # Individual Incidents
     html.Div([
         html.H2('Individual Incidents', style={'textAlign': 'center'}),
         # Main Plot & Selectors
         html.Div([
             html.Div([
+                # Year Dropdown
+                html.Div(
+                    dcc.Checklist(
+                        id='incident-checklist-year',
+                        options=[{'label': i, 'value': i} for i in
+                            range(2014, 2019)],
+                        values=[2017],
+                        labelStyle={'display': 'inline-block'}
+                    ),
+                style={'width': '35%', 'display': 'inline-block'}
+                ),
                 # State Dropdown
                 html.Div(
                     dcc.Dropdown(
@@ -97,49 +123,57 @@ app.layout = html.Div([
                         options=[{'label':i,'value':i} for i in df_state.index],
                         value='Arizona',
                     ),
-                style={'width': '50%', 'display': 'inline-block'}
-                ),
-                # Year Dropdown
+                style={
+                    'width': '20%',
+                    'display': 'inline-block',
+                    'margin-left': '5%',
+                    'margin-right': '5%',
+                    'margin-top': 5
+                }),
+                # Feature Radio
                 html.Div(
-                    dcc.Dropdown(
-                        id='incident-dropdown-year',
+                    dcc.RadioItems(
+                        id='incident-radio-feature',
                         options=[{'label': i, 'value': i} for i in
-                            range(2014, 2019)],
-                        value=[2017],
-                        multi=True
+                            ['Show All', 'Killed Only', 'Injured Only']],
+                        value='Show All',
+                        labelStyle={'display': 'inline-block'}
                     ),
-                style={'width': '50%', 'display': 'inline-block'}
+                style={'width': '35%', 'display': 'inline-block'},
                 )
             ], style={
-                'width': '75%',
-                'margin-left': 'auto',
-                'margin-right': 'auto',
+                'borderStyle': 'solid',
+                'borderColor': 'black',
+                'backgroundColor': 'rgba(110, 110, 110, 0.15)',
             }
             ),
             dcc.Graph(
                 id='incident-plot',
                 config={'displayModeBar': False},
                 style={'width': '100%', 'display': 'inline-block'},
-                # hoverData=some dictionary!!!!
             )
         ], style={'width': '70%', 'display': 'inline-block'}),
         # # Info Boxes
         html.Div([
-            html.H3('Info', style={'textAlign': 'center'}),
+            html.H3('Info', style={'margin-left': '10%'}),
             dcc.Textarea(
                 id='incident-info',
                 readOnly=True,
                 wrap=True,
                 style={'width': '100%', 'height': 220}
             ),
-            html.H3('Notes', style={'textAlign': 'center'}),
+            html.H3('Notes', style={'margin-left': '10%'}),
             dcc.Textarea(
                 id='incident-notes',
                 readOnly=True,
                 wrap=True,
                 style={'width': '100%', 'height': 140}
             )
-        ], style={'width': '30%', 'height': 500, 'display': 'inline-block'}),
+        ], style={
+            'width': '30%',
+            'height': 500,
+            'display': 'inline-block'
+        }),
     ])
 ],
 style={
@@ -187,9 +221,9 @@ def choropleth_plot(year, feature, metric):
         z = z.round(2)
 
     # Color Scale
-    scl = [[0.0, 'rgb(255, 255, 255)'], [0.2, 'rgb(200, 190, 190)'],
-           [0.4, 'rgb(200, 160, 160)'], [0.6, 'rgb(200, 130, 130)'],
-           [0.8, 'rgb(200, 100, 100)'], [1.0, 'rgb(140, 0, 0)']]
+    scl = [[0.0, 'rgb(255, 255, 255)'], [0.4, 'rgb(215, 190, 190)'],
+           [0.55, 'rgb(215, 160, 160)'], [0.7, 'rgb(215, 130, 130)'],
+           [0.85, 'rgb(215, 100, 100)'], [1.0, 'rgb(140, 0, 0)']]
 
     data = [dict(
         type='choropleth',
@@ -203,8 +237,7 @@ def choropleth_plot(year, feature, metric):
         text=df_state.index,
         colorbar={
             'title': feature,
-            'x': 0,
-
+            'x': 0
         }
     )]
 
@@ -225,11 +258,7 @@ def choropleth_trend(feature, metric, hoverData, clickData):
     '''
     This function returns the plotly figure for the state's trend plot
     '''
-    # Checks if user has hovered yet
-    if type(hoverData) == dict:
-        hover_state = hoverData['points'][0]['text']
-    else:
-        hover_state = 'Arizona'
+    hover_state = hoverData['points'][0]['text']
 
     y = lookup(hover_state, feature.lower())
     # Check for Population scaling
@@ -252,7 +281,12 @@ def choropleth_trend(feature, metric, hoverData, clickData):
         # Check for a new larger y
         if max_y < max(y):
             max_y = max(y)
-        trace = go.Scatter(x=list(range(2014, 2018)), y=y, name=click_state)
+        trace = go.Scatter(
+            x=list(range(2014, 2018)),
+            y=y,
+            name=click_state,
+            line={'color': 'red'}
+        )
         data.append(trace)
 
     # Rescales yaxis
@@ -267,6 +301,7 @@ def choropleth_trend(feature, metric, hoverData, clickData):
         margin={'l': 20, 'b': 20, 't': 5, 'r': 5},
         yaxis={'range': yaxis_range},
         legend={'x': 0, 'y': 1.2, 'orientation': 'h'},
+        showlegend=True
     )
 
     return {'data': data, 'layout': layout}
@@ -279,11 +314,7 @@ def choropleth_totals(hoverData, year):
     '''
     This function will return the totals info for the hover-on state
     '''
-    # Checks if user has hovered yet
-    if type(hoverData) == dict:
-        hover_state = hoverData['points'][0]['text']
-    else:
-        hover_state = 'Arizona'
+    hover_state = hoverData['points'][0]['text']
 
     row = df_state.loc[hover_state]
     killed = row[f'killed{year}']
@@ -304,14 +335,12 @@ def choropleth_totals(hoverData, year):
 @app.callback(
     Output('incident-plot', 'figure'),
     [Input('incident-dropdown-state', 'value'),
-    Input('incident-dropdown-year', 'value')])
+    Input('incident-checklist-year', 'values')])
 def incident_plot(state, years):
     '''
     Returns figure for the main Individual Incidents Mapbox
     '''
-    print(years)
     years.sort()
-    print(years)
 
     df = df_gv.copy()
     df = df[df['state']==state]
@@ -367,7 +396,7 @@ def incident_info(hoverData):
     '''
     # check for initial hover
     if type(hoverData) != dict:
-        return "Hover over a marker to read incident notes"
+        return "Hover over a marker to get incident info"
     else:
         hovertext = hoverData['points'][0]['text']
         id =int(hovertext.split('<br>')[0].split()[1])
@@ -406,7 +435,7 @@ def incident_notes(hoverData):
     This will be a function for returning the notes of the incident
     '''
     if type(hoverData) != dict:
-        return "Hover over a marker for more info"
+        return "Hover over a marker to read notes on that incident"
     else:
         hovertext = hoverData['points'][0]['text']
         id =int(hovertext.split('<br>')[0].split()[1])
