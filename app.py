@@ -78,27 +78,61 @@ app.layout = html.Div([
             ),
             html.Br(),
             dcc.Graph(id='choropleth-trend', config={'displayModeBar': False}),
-            html.Div(id='choropleth-totals', style={'height': 200, 'overflowY': 'scroll', 'display': 'inline-block'})
+            html.Div(
+                id='choropleth-totals',
+                style={'height': 200, 'overflowY': 'scroll'})
         ], style={'width': '25%', 'height': 500, 'display': 'inline-block'}
         )
     ]),
     # Individual Incidents
     html.Div([
         html.H2('Individual Incidents', style={'textAlign': 'center'}),
-        # Main Plot
+        # Main Plot & Selectors
         html.Div([
-            dcc.Graph(id='incident-plot'),
+            html.Div([
+                # State Dropdown
+                html.Div(
+                    dcc.Dropdown(
+                        id='incident-dropdown-state',
+                        options=[{'label':i,'value':i} for i in df_state.index],
+                        value='Arizona',
+                    ),
+                style={'width': '50%', 'display': 'inline-block'}
+                ),
+                # Year Dropdown
+                html.Div(
+                    dcc.Dropdown(
+                        id='incident-dropdown-year',
+                        options=[{'label': i, 'value': i} for i in
+                            range(2014, 2019)],
+                        value=[2017],
+                        multi=True
+                    ),
+                style={'width': '50%', 'display': 'inline-block'}
+                )
+            ], style={
+                'width': '75%',
+                'margin-left': 'auto',
+                'margin-right': 'auto',
+            }
+            ),
+            dcc.Graph(
+                id='incident-plot',
+                config={'displayModeBar': False},
+                style={'width': '100%', 'display': 'inline-block'},
+                # hoverData=some dictionary!!!!
+            )
         ], style={'width': '70%', 'display': 'inline-block'}),
-        # Info Boxes
+        # # Info Boxes
         html.Div([
-            html.H3('Info'),
+            html.H3('Info', style={'textAlign': 'center'}),
             dcc.Textarea(
                 id='incident-info',
                 readOnly=True,
                 wrap=True,
                 style={'width': '100%', 'height': 220}
             ),
-            html.H3('Notes'),
+            html.H3('Notes', style={'textAlign': 'center'}),
             dcc.Textarea(
                 id='incident-notes',
                 readOnly=True,
@@ -106,36 +140,12 @@ app.layout = html.Div([
                 style={'width': '100%', 'height': 140}
             )
         ], style={'width': '30%', 'height': 500, 'display': 'inline-block'}),
-        # Selectors
-        html.Div([
-            # State Dropdown
-            html.Div(
-                dcc.Dropdown(
-                    id='incident-dropdown-state',
-                    options=[{'label': i, 'value': i} for i in df_state.index],
-                    value='Arizona',
-                ),
-            style={'width': '50%', 'display': 'inline-block'}
-            ),
-            # Year Checklist
-            html.Div(
-                dcc.Checklist(
-                    id='incident-checklist-year',
-                    options=[{'label': i, 'value': i} for i in
-                        range(2014, 2019)],
-                    values=[2017]
-                ),
-            style={'width': '50%', 'float': 'right'}
-            )
-        ],
-        style={'width': '50%', 'margin-left': 'auto', 'margin-right': 'auto'}
-        ),
     ])
 ],
 style={
     'width': '85vw',
     'margin-left': 'auto',
-    'margin-right': 'auto'
+    'margin-right': 'auto',
 }
 )
 
@@ -294,12 +304,14 @@ def choropleth_totals(hoverData, year):
 @app.callback(
     Output('incident-plot', 'figure'),
     [Input('incident-dropdown-state', 'value'),
-    Input('incident-checklist-year', 'values')])
+    Input('incident-dropdown-year', 'value')])
 def incident_plot(state, years):
     '''
     Returns figure for the main Individual Incidents Mapbox
     '''
+    print(years)
     years.sort()
+    print(years)
 
     df = df_gv.copy()
     df = df[df['state']==state]
@@ -326,17 +338,18 @@ def incident_plot(state, years):
             marker={
                 'size': 7,
                 'color': colors.pop(0),
-                'opacity': 0.6
-            },
+                'opacity': 0.6,
+            }
         ))
 
     layout = go.Layout(
-        margin={'l': 10, 'b': 20, 't': 0, 'r': 10},
+        margin={'l': 0, 'b': 0, 't': 0, 'r': 0},
+        height=450,
         autosize=True,
         mapbox={
             'accesstoken': mapbox_access_token,
             'center':center,
-            'zoom': 8,
+            'zoom': 8.5,
             'style': 'light'
         }
     )
