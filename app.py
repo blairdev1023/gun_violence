@@ -221,9 +221,24 @@ def choropleth_plot(year, feature, metric):
         z = z.round(2)
 
     # Color Scale
-    scl = [[0.0, 'rgb(255, 255, 255)'], [0.4, 'rgb(215, 190, 190)'],
-           [0.55, 'rgb(215, 160, 160)'], [0.7, 'rgb(215, 130, 130)'],
-           [0.85, 'rgb(215, 100, 100)'], [1.0, 'rgb(140, 0, 0)']]
+    scl = [[0.0, 'rgb(255, 255, 255)'], [0.3, 'rgb(215, 190, 190)'],
+           [0.4, 'rgb(215, 160, 160)'], [0.6, 'rgb(215, 130, 130)'],
+           [0.8, 'rgb(215, 100, 100)'], [1.0, 'rgb(140, 0, 0)']]
+
+    # Yes, this is mega ugly right now. I'll do something different later
+    # Get right zmax for feature
+    if (feature == 'Killed') * (metric == 'Per 100,000'):
+        zmax = 12
+    elif (feature == 'Injured') & (metric == 'Per 100,000'):
+        zmax = 30
+    elif (feature == 'Total') & (metric == 'Per 100,000'):
+        zmax = 40
+    if (feature == 'Killed') * (metric == 'Raw'):
+        zmax = 1500
+    elif (feature == 'Injured') & (metric == 'Raw'):
+        zmax = 3500
+    elif (feature == 'Total') & (metric == 'Raw'):
+        zmax = 4500
 
     data = [dict(
         type='choropleth',
@@ -233,7 +248,7 @@ def choropleth_plot(year, feature, metric):
         locations=df_state['code'],
         z=z,
         zmin=0,
-        zmax=12,
+        zmax=zmax,
         text=df_state.index,
         colorbar={
             'title': feature,
@@ -260,7 +275,13 @@ def choropleth_trend(feature, metric, hoverData, clickData):
     '''
     hover_state = hoverData['points'][0]['text']
 
-    y = lookup(hover_state, feature.lower())
+    # Checks if total
+    if feature != 'Total':
+        y = lookup(hover_state, feature.lower())
+    else:
+        killed = np.array(lookup(hover_state, 'killed'))
+        injured = np.array(lookup(hover_state, 'injured'))
+        y = killed + injured
     # Check for Population scaling
     if metric == 'Per 100,000':
         pop = np.array(lookup(hover_state, 'popestimate'))
@@ -273,7 +294,13 @@ def choropleth_trend(feature, metric, hoverData, clickData):
     # Checks for clicked on state
     if type(clickData) == dict:
         click_state = clickData['points'][0]['text']
-        y = lookup(click_state, feature.lower())
+        # Checks if total
+        if feature != 'Total':
+            y = lookup(hover_state, feature.lower())
+        else:
+            killed = np.array(lookup(hover_state, 'killed'))
+            injured = np.array(lookup(hover_state, 'injured'))
+            y = killed + injured
         # Check for Population scaling
         if metric == 'Per 100,000':
             pop = np.array(lookup(click_state, 'popestimate'))
@@ -281,6 +308,7 @@ def choropleth_trend(feature, metric, hoverData, clickData):
         # Check for a new larger y
         if max_y < max(y):
             max_y = max(y)
+        # Data Trace
         trace = go.Scatter(
             x=list(range(2014, 2018)),
             y=y,
@@ -445,6 +473,7 @@ def incident_notes(hoverData):
     if type(notes) != str:
         return 'No notes for this incident'
     return notes
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
