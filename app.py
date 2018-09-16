@@ -47,6 +47,7 @@ app.layout = html.Div([
     # State Choropleth
     html.Div([
         html.H2('Incidents by State', style={'textAlign': 'center'}),
+        html.H5(id='choropleth-title', style={'textAlign': 'center'}),
         # Main Plot
         html.Div([
             dcc.Graph(id='choropleth-plot', config={'displayModeBar': False}),
@@ -64,7 +65,6 @@ app.layout = html.Div([
         ], style={'width': '75%', 'display': 'inline-block'}),
         # Side Plot, Selectors, Notes Box
         html.Div([
-            dcc.Graph(id='choropleth-trend', config={'displayModeBar': False}),
             dcc.Dropdown(
                 id='choropleth-dropdown-feature',
                 options=[{'label': i, 'value': i} for i in
@@ -76,6 +76,8 @@ app.layout = html.Div([
                 options=[{'label':i,'value':i} for i in ['Raw', 'Per 100,000']],
                 value='Per 100,000'
             ),
+            html.Br(),
+            dcc.Graph(id='choropleth-trend', config={'displayModeBar': False}),
             html.Div(id='choropleth-totals', style={'height': 200, 'overflowY': 'scroll', 'display': 'inline-block'})
         ], style={'width': '25%', 'height': 500, 'display': 'inline-block'}
         )
@@ -94,14 +96,14 @@ app.layout = html.Div([
                 id='incident-info',
                 readOnly=True,
                 wrap=True,
-                style={'width': '100%', 'height': 180}
+                style={'width': '100%', 'height': 220}
             ),
             html.H3('Notes'),
             dcc.Textarea(
                 id='incident-notes',
                 readOnly=True,
                 wrap=True,
-                style={'width': '100%', 'height': 180}
+                style={'width': '100%', 'height': 140}
             )
         ], style={'width': '30%', 'height': 500, 'display': 'inline-block'}),
         # Selectors
@@ -142,6 +144,18 @@ app.css.append_css({
 })
 
 @app.callback(
+    Output('choropleth-title', 'children'),
+    [Input('choropleth-slider-year', 'value'),
+    Input('choropleth-radio-metric', 'value')])
+def choropleth_plot(year, metric):
+    '''
+    This function returns the title for the choropleth
+
+    Updates on year and metric changes
+    '''
+    return f'{metric}, ({year})'
+
+@app.callback(
     Output('choropleth-plot', 'figure'),
     [Input('choropleth-slider-year', 'value'),
     Input('choropleth-dropdown-feature', 'value'),
@@ -150,10 +164,6 @@ def choropleth_plot(year, feature, metric):
     '''
     Returns a plotly figure for the main state choropleth
     '''
-    scl = [[0.0, 'rgb(242,240,247)'], [0.2, 'rgb(218,218,235)'],
-           [0.4, 'rgb(188,189,220)'], [0.6, 'rgb(158,154,200)'],
-           [0.8, 'rgb(117,107,177)'], [1.0, 'rgb(84,39,143)']]
-
     # Checks type of feature
     if feature != 'Total':
         z = df_state[feature.lower() + str(year)]
@@ -166,26 +176,31 @@ def choropleth_plot(year, feature, metric):
         z = z / (pop / 100000)
         z = z.round(2)
 
+    # Color Scale
+    scl = [[0.0, 'rgb(255, 255, 255)'], [0.2, 'rgb(200, 190, 190)'],
+           [0.4, 'rgb(200, 160, 160)'], [0.6, 'rgb(200, 130, 130)'],
+           [0.8, 'rgb(200, 100, 100)'], [1.0, 'rgb(140, 0, 0)']]
+
     data = [dict(
         type='choropleth',
-        colorscl=scl,
+        colorscale=scl,
         autocolorscale=False,
         locationmode='USA-states',
         locations=df_state['code'],
         z=z,
+        zmin=0,
+        zmax=12,
         text=df_state.index,
         colorbar={
             'title': feature,
-            'x': 0
+            'x': 0,
+
         }
     )]
 
     layout = go.Layout(
         margin={'l': 10, 'b': 20, 't': 0, 'r': 10},
-        geo = dict(
-            scope='usa',
-            projection=dict(type='albers usa'),
-        ),
+        geo = dict(scope='usa', projection={'type': 'albers usa'})
     )
 
     return {'data': data, 'layout': layout}
@@ -194,12 +209,11 @@ def choropleth_plot(year, feature, metric):
     Output('choropleth-trend', 'figure'),
     [Input('choropleth-dropdown-feature', 'value'),
     Input('choropleth-radio-metric', 'value'),
-    Input('choropleth-plot', 'hoverData')])
-def choropleth_trend(feature, metric, hoverData):
+    Input('choropleth-plot', 'hoverData'),
+    Input('choropleth-plot', 'clickData')])
+def choropleth_trend(feature, metric, hoverData, clickData):
     '''
-    This function will return a plotly figure
-
-    This figure will have a trace for each requested feature aggregated by state
+    This function returns the plotly figure for the state's trend plot
     '''
     # Checks if user has hovered yet
     if type(hoverData) == dict:
@@ -208,19 +222,43 @@ def choropleth_trend(feature, metric, hoverData):
         hover_state = 'Arizona'
 
     y = lookup(hover_state, feature.lower())
+    # Check for Population scaling
     if metric == 'Per 100,000':
         pop = np.array(lookup(hover_state, 'popestimate'))
         y = np.array(y) / (pop / 100000)
+    max_y = max(y)
 
-    data = [go.Scatter(
-        x=list(range(2014, 2018)),
-        y=y,
-    )]
+    # Main trace
+    data = [go.Scatter(x=list(range(2014, 2018)), y=y, name=hover_state)]
 
+    # Checks for clicked on state
+    if type(clickData) == dict:
+        click_state = clickData['points'][0]['text']
+        y = lookup(click_state, feature.lower())
+        # Check for Population scaling
+        if metric == 'Per 100,000':
+            pop = np.array(lookup(click_state, 'popestimate'))
+            y = np.array(y) / (pop / 100000)
+        # Check for a new larger y
+        if max_y < max(y):
+            max_y = max(y)
+        trace = go.Scatter(x=list(range(2014, 2018)), y=y, name=click_state)
+        data.append(trace)
+
+    # Rescales yaxis
+    if max_y > 7:
+        yaxis_range = [0, max_y + 1]
+    else:
+        yaxis_range = [0, 8]
+
+    # Layout
     layout = go.Layout(
         height=200,
         margin={'l': 20, 'b': 20, 't': 5, 'r': 5},
+        yaxis={'range': yaxis_range},
+        legend={'x': 0, 'y': 1.2, 'orientation': 'h'},
     )
+
     return {'data': data, 'layout': layout}
 
 @app.callback(
@@ -328,19 +366,19 @@ def incident_info(hoverData):
            'Injured:\t' + str(row['n_injured']) + '\n\n'
     # gun type
     if type(row['gun_type']) == str:
-        text += 'Gun Type: ' + row['gun_type'] + '\n'
+        text += 'Gun Type:\t\t' + row['gun_type'] + '\n'
     else:
-        text += 'Gun Type: Unknown\n'
+        text += 'Gun Type:\t\tUnknown\n'
 
     # participants
     if type(row['participant_age']) == str:
-        text += 'Participants: ' + \
+        text += 'Participants:\t\t' + \
                 str(len(row['participant_age'].split(','))) + '\n'
-        text += 'Participant Age: ' + \
+        text += 'Participant Age:\t' + \
                 row['participant_age'].replace(',', ', ') + '\n'
     else:
-        text += 'Participants: Unknown\n'
-        text += 'Participant Age: Unknown\n'
+        text += 'Participants:\t\tUnknown\n'
+        text += 'Participant Age:\tUnknown\n'
 
     # url
     text += '\n' + 'URL: ' + row['incident_url']
