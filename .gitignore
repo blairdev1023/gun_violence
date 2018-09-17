@@ -1,4 +1,7 @@
-/data
+# /data
+/data/gun-violence-data.zip
+/data/gun-violence-data_01-2013_03-2018.csv
+/data/nst-est2017-alldata.csv
 /venv
 .DS_Store
 .ipynb_checkpoints
