@@ -42,6 +42,17 @@ def generate_table(dataframe, max_rows=10):
         ]) for i in range(min(len(dataframe), max_rows))]
     )
 
+def clr_check(val, default_color, mass_color='black', threshold=10):
+    '''
+    For use in the individual incident plot.
+
+    Returns default_color if val is below threshold, else mass_color
+    '''
+    if int(val) < threshold:
+        return default_color
+    else:
+        return mass_color
+
 app.layout = html.Div([
     html.H1('U.S. Gun Violence 2014-2018', style={'textAlign': 'center'}),
     # State Choropleth
@@ -296,10 +307,10 @@ def choropleth_trend(feature, metric, hoverData, clickData):
         click_state = clickData['points'][0]['text']
         # Checks if total
         if feature != 'Total':
-            y = lookup(hover_state, feature.lower())
+            y = lookup(click_state, feature.lower())
         else:
-            killed = np.array(lookup(hover_state, 'killed'))
-            injured = np.array(lookup(hover_state, 'injured'))
+            killed = np.array(lookup(click_state, 'killed'))
+            injured = np.array(lookup(click_state, 'injured'))
             y = killed + injured
         # Check for Population scaling
         if metric == 'Per 100,000':
@@ -362,9 +373,10 @@ def choropleth_totals(hoverData, year):
 
 @app.callback(
     Output('incident-plot', 'figure'),
-    [Input('incident-dropdown-state', 'value'),
-    Input('incident-checklist-year', 'values')])
-def incident_plot(state, years):
+    [Input('incident-checklist-year', 'values'),
+    Input('incident-dropdown-state', 'value'),
+    Input('incident-radio-feature', 'value')])
+def incident_plot(years, state, feature):
     '''
     Returns figure for the main Individual Incidents Mapbox
     '''
@@ -380,8 +392,26 @@ def incident_plot(state, years):
 
 
     data = []
+    # Make a trace for each year user is interested in
     for year in years:
         df_year = df[df['date'].apply(lambda x: x.year==year)]
+        # Check incident filter
+        if feature != 'Show All':
+            feature = feature.split()[0].lower()
+            if feature == 'killed':
+                df_year = df_year[df_year['n_killed'] > 0]
+            elif feature == 'injured':
+                df_year = df_year[df_year['n_killed'] == 0]
+
+        # Partition out mass shootings
+        print(len(df_year))
+        df_year['total'] = df_year['n_killed'] + df_year['n_injured']
+        df_mass = df_year[df_year['total'] >= 5]
+        df_year = df_year[df_year['total'] < 5]
+        print(len(df_year))
+        print(len(df_mass))
+
+        # Main Traces
         text = 'ID: ' + df_year.index.astype(str) + '<br>' + \
             df_year['address'].fillna('') +  '<br>' + \
             df_year['location_description'].fillna('')
@@ -398,6 +428,25 @@ def incident_plot(state, years):
                 'opacity': 0.6,
             }
         ))
+
+        # Mass Traces
+        text = 'ID: ' + df_mass.index.astype(str) + '<br>' + \
+            df_mass['address'].fillna('') +  '<br>' + \
+            df_mass['location_description'].fillna('')
+        data.append(go.Scattermapbox(
+            lat=df_mass['latitude'],
+            lon=df_mass['longitude'],
+            hoverinfo='text',
+            text=text,
+            mode='markers',
+            marker={
+                'size': 9,
+                'color': 'black',
+                'opacity': 0.9,
+            },
+            showlegend=False
+        ))
+
 
     layout = go.Layout(
         margin={'l': 0, 'b': 0, 't': 0, 'r': 0},
