@@ -22,6 +22,12 @@ def scrape(idx):
         time.sleep(10)
         print('Starting Again!')
         return scrape(idx)
+    except requests.exceptions.ConnectionError:
+        print(f'Oops! Lost Connection on {idx}, waiting 10 seconds...')
+        print(time.time() - start)
+        time.sleep(10)
+        print('Starting Again!')
+        return scrape(idx)
 
 def check_idxs(page_idxs, lower_bound, upper_bound):
     '''
