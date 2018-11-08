@@ -44,11 +44,10 @@ def check_idxs(lower_bound, upper_bound):
     returns a list of the incident indices between the bounds
     '''
 
-    start = time.time()
     page_idxs = []
     for idx in range(lower_bound, upper_bound):
         if idx % 100 == 0:
-            print(idx - lower_bound, len(page_idxs), time.time() - start)
+            print(str(idx)[:3], len(page_idxs), time.time() - start)
         soup = scrape(idx)
         if soup.h1.text != '\nPage not found\n':
             page_idxs.append(idx)
@@ -60,4 +59,5 @@ def check_idxs(lower_bound, upper_bound):
     print(len(page_idxs), time.time() - start)
 
 if __name__ == '__main__':
+    start = time.time()
     check_idxs(200000, 250000)
