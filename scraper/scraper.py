@@ -7,8 +7,9 @@ import numpy as np
 
 def scrape(idx):
     '''
-    returns the soup form the url
+    returns the soup from the indexed url
     '''
+
     url = f'https://www.gunviolencearchive.org/incident/{idx}'
     try:
         page = requests.get(url)
@@ -29,21 +30,34 @@ def scrape(idx):
         print('Starting Again!')
         return scrape(idx)
 
-def check_idxs(page_idxs, lower_bound, upper_bound):
+def save(page_idxs, idx):
+    '''
+    simple save
+    '''
+    thousand = str(idx)[:3]
+    pathname = f'../data/known_ids/scrape_{thousand}.csv'
+    series = pd.Series(page_idxs, name='ids')
+    series.to_csv(pathname, index=False, header='ids')
+
+def check_idxs(lower_bound, upper_bound):
     '''
     returns a list of the incident indices between the bounds
     '''
+
+    start = time.time()
+    page_idxs = []
     for idx in range(lower_bound, upper_bound):
         if idx % 100 == 0:
-            time.sleep(1)
             print(idx - lower_bound, len(page_idxs), time.time() - start)
         soup = scrape(idx)
         if soup.h1.text != '\nPage not found\n':
             page_idxs.append(idx)
-    return page_idxs
+        # Save every 1000
+        if (idx % 1000 == 0) & (idx != lower_bound):
+            save(page_idxs, idx)
+            page_idxs = []
+    save(page_idxs, upper_bound)
+    print(len(page_idxs), time.time() - start)
 
 if __name__ == '__main__':
-    start = time.time()
-    page_idxs = []
-    page_idxs = check_idxs(page_idxs, 130000, 140000)
-    print(len(page_idxs), time.time() - start)
+    check_idxs(200000, 250000)
