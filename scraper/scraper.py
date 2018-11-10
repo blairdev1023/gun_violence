@@ -4,31 +4,46 @@ from bs4 import BeautifulSoup
 import time
 import pandas as pd
 import numpy as np
+import sys
 
 def scrape(idx):
     '''
     returns the soup from the indexed url
     '''
-
     url = f'https://www.gunviolencearchive.org/incident/{idx}'
     try:
-        page = requests.get(url)
+        printout(f'Trying a request on {idx}')
+        page = requests.get(url, timeout=10)
         return BeautifulSoup(page.text, 'html.parser')
     except requests.exceptions.SSLError:
-        print(f'SSLError on {idx}, trying again...', time.time() - start)
+        now = round(time.time() - start)
+        print(f'SSLError on {idx}, trying again...', now)
         return scrape(idx)
     except requests.exceptions.ChunkedEncodingError:
-        print(f'ChunkedEncodingError on {idx}, waiting 10 seconds...')
-        print(time.time() - start)
-        time.sleep(10)
-        print('Starting Again!')
+        now = round(time.time() - start)
+        print(f'ChunkedEncodingError on {idx}, trying again...', now)
         return scrape(idx)
     except requests.exceptions.ConnectionError:
-        print(f'Oops! Lost Connection on {idx}, waiting 10 seconds...')
-        print(time.time() - start)
-        time.sleep(10)
-        print('Starting Again!')
+        now = round(time.time() - start)
+        print(f'Oops! Lost Connection on {idx}, trying again...', now)
         return scrape(idx)
+    except requests.exceptions.ReadTimeout:
+        now = round(time.time() - start)
+        print(f'Timeout on {idx}, trying again...', now)
+        return scrape(idx)
+
+def printout(message):
+    '''
+    Prints the message and the time. Carriage reset makes this line get
+    overwritten when a normal 'print' is called. These messages are for
+    the status of the scraper
+    '''
+    now = round(time.time() - start)
+    message = ' ' + message + '\tTime: ' + str(now)
+    sys.stdout.write(message)
+    sys.stdout.flush()
+    sys.stdout.write('\r')
+    sys.stdout.flush()
 
 def save(page_idxs, idx):
     '''
@@ -43,13 +58,14 @@ def check_idxs(lower_bound, upper_bound):
     '''
     returns a list of the incident indices between the bounds
     '''
-
     page_idxs = []
     for idx in range(lower_bound, upper_bound):
         if idx % 100 == 0:
-            print(str(idx)[:3], len(page_idxs), time.time() - start)
+            now = round(time.time() - start)
+            print(str(idx)[:3], len(page_idxs), now)
         soup = scrape(idx)
-        if soup.h1.text != '\nPage not found\n':
+        page_found = (soup.h1.text != '\nPage not found\n')
+        if page_found:
             page_idxs.append(idx)
         # Save every 1000
         if (idx % 1000 == 0) & (idx != lower_bound):
@@ -60,4 +76,4 @@ def check_idxs(lower_bound, upper_bound):
 
 if __name__ == '__main__':
     start = time.time()
-    check_idxs(200000, 250000)
+    check_idxs(400000, 450000)
