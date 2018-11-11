@@ -13,11 +13,11 @@ def scrape(idx):
     url = f'https://www.gunviolencearchive.org/incident/{idx}'
     try:
         printout(f'Trying a request on {idx}')
-        page = requests.get(url, timeout=10)
+        page = requests.get(url, timeout=1)
         return BeautifulSoup(page.text, 'html.parser')
     except requests.exceptions.SSLError:
         now = round(time.time() - start)
-        print(f'SSLError on {idx}, trying again...', now)
+        print(f'SSLError on {idx}, trying again......', now)
         return scrape(idx)
     except requests.exceptions.ChunkedEncodingError:
         now = round(time.time() - start)
@@ -28,8 +28,6 @@ def scrape(idx):
         print(f'Oops! Lost Connection on {idx}, trying again...', now)
         return scrape(idx)
     except requests.exceptions.ReadTimeout:
-        now = round(time.time() - start)
-        print(f'Timeout on {idx}, trying again...', now)
         return scrape(idx)
 
 def printout(message):
@@ -62,7 +60,8 @@ def check_idxs(lower_bound, upper_bound):
     for idx in range(lower_bound, upper_bound):
         if idx % 100 == 0:
             now = round(time.time() - start)
-            print(str(idx)[:3], len(page_idxs), now)
+            print(str(idx)[:3], len(page_idxs), now, ' ' * 30)
+            # extra spaces to overwrite the printout    ^^^^^
         soup = scrape(idx)
         page_found = (soup.h1.text != '\nPage not found\n')
         if page_found:
@@ -72,8 +71,9 @@ def check_idxs(lower_bound, upper_bound):
             save(page_idxs, idx)
             page_idxs = []
     save(page_idxs, upper_bound)
-    print(len(page_idxs), time.time() - start)
+    print(len(page_idxs), time.time() - start, ' ' * 30)
+    # extra spaces to overwrite the printout    ^^^^^
 
 if __name__ == '__main__':
     start = time.time()
-    check_idxs(400000, 450000)
+    check_idxs(318000, 350000)
