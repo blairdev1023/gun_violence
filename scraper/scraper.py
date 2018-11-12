@@ -1,34 +1,34 @@
-import requests
+import os
 import csv
-from bs4 import BeautifulSoup
-import time
-import pandas as pd
-import numpy as np
 import sys
+import time
+import requests
+from bs4 import BeautifulSoup
+from multiprocessing import Pool, cpu_count
 
-def scrape(idx):
+def open_soup(url):
     '''
-    returns the soup from the indexed url
+    returns the soup from the url
     '''
-    url = f'https://www.gunviolencearchive.org/incident/{idx}'
+    idx = int(url[-6:])
     try:
         printout(f'Trying a request on {idx}')
-        page = requests.get(url, timeout=1)
+        page = requests.get(url, timeout=2)
         return BeautifulSoup(page.text, 'html.parser')
     except requests.exceptions.SSLError:
         now = round(time.time() - start)
         print(f'SSLError on {idx}, trying again......', now)
-        return scrape(idx)
+        return open_soup(url)
     except requests.exceptions.ChunkedEncodingError:
         now = round(time.time() - start)
         print(f'ChunkedEncodingError on {idx}, trying again...', now)
-        return scrape(idx)
+        return open_soup(url)
     except requests.exceptions.ConnectionError:
         now = round(time.time() - start)
         print(f'Oops! Lost Connection on {idx}, trying again...', now)
-        return scrape(idx)
+        return open_soup(url)
     except requests.exceptions.ReadTimeout:
-        return scrape(idx)
+        return open_soup(url)
 
 def printout(message):
     '''
@@ -43,37 +43,39 @@ def printout(message):
     sys.stdout.write('\r')
     sys.stdout.flush()
 
-def save(page_idxs, idx):
+def save(idx):
     '''
     simple save
     '''
-    thousand = str(idx)[:3]
-    pathname = f'../data/known_ids/scrape_{thousand}.csv'
-    series = pd.Series(page_idxs, name='ids')
-    series.to_csv(pathname, index=False, header='ids')
+    pathname = '../data/known_ids/'
+    filename = 'scraped.csv'
+    # checks if the csv exists
+    if 'scraped.csv' not in os.listdir(pathname):
+        with open(pathname+filename, 'w') as f:
+            f.write('ids')
+            f.write('\n')
+    # this is the save
+    with open(pathname+filename, 'a') as f:
+        f.write(str(idx))
+        f.write('\n')
 
-def check_idxs(lower_bound, upper_bound):
+def check_idx(url):
     '''
-    returns a list of the incident indices between the bounds
+    main function, saves the index if it finds a page
     '''
-    page_idxs = []
-    for idx in range(lower_bound, upper_bound):
-        if idx % 100 == 0:
-            now = round(time.time() - start)
-            print(str(idx)[:3], len(page_idxs), now, ' ' * 30)
-            # extra spaces to overwrite the printout    ^^^^^
-        soup = scrape(idx)
-        page_found = (soup.h1.text != '\nPage not found\n')
-        if page_found:
-            page_idxs.append(idx)
-        # Save every 1000
-        if (idx % 1000 == 0) & (idx != lower_bound):
-            save(page_idxs, idx)
-            page_idxs = []
-    save(page_idxs, upper_bound)
-    print(len(page_idxs), time.time() - start, ' ' * 30)
-    # extra spaces to overwrite the printout    ^^^^^
+    idx = int(url[-6:])
+    soup = open_soup(url)
+    if soup.h1.text == '\nIncident\n':
+        save(idx)
+    elif soup.h1.text == '\nPage not found\n':
+        pass
+    else:
+        check_idx(url)
 
 if __name__ == '__main__':
     start = time.time()
-    check_idxs(318000, 350000)
+    urls = []
+    for idx in range(200000, 202000):
+        urls.append(f'https://www.gunviolencearchive.org/incident/{idx}')
+    with Pool(cpu_count()) as p:
+        p.map(check_idx, urls)
