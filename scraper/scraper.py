@@ -65,9 +65,10 @@ def check_idx(url):
     '''
     idx = int(url[-6:])
     soup = open_soup(url)
-    if soup.h1.text == '\nIncident\n':
+    header = soup.h1.text.lower()
+    if 'incident' in header:
         save(idx)
-    elif soup.h1.text == '\nPage not found\n':
+    elif 'page not found' in header:
         pass
     else:
         check_idx(url)
