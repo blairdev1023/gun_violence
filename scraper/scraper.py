@@ -13,7 +13,7 @@ def open_soup(url):
     idx = int(url[-6:])
     try:
         printout(f'Trying a request on {idx}')
-        page = requests.get(url, timeout=2)
+        page = requests.get(url, timeout=10)
         return BeautifulSoup(page.text, 'html.parser'), page.status_code
     except requests.exceptions.SSLError:
         now = round(time.time() - start)
@@ -37,8 +37,7 @@ def printout(message):
     the live status of the scraper
     '''
     now = round(time.time() - start)
-    message = ' ' + message + '\tTime: ' + str(now) # normal message
-    message += (' ' * 40) # extra spaces to overwrite rightside
+    message = ' ' + message + '\tTime: ' + str(now)
     sys.stdout.write(message)
     sys.stdout.flush()
     sys.stdout.write('\r')
@@ -70,13 +69,16 @@ def check_idx(url):
         save(idx)
     elif status_code == 404:
         pass
+    elif status_code == 403:
+        pass
     else:
         check_idx(url)
 
 if __name__ == '__main__':
     start = time.time()
     urls = []
-    for idx in range(200000, 202000):
+    for idx in range(890000, 900000):
         urls.append(f'https://www.gunviolencearchive.org/incident/{idx}')
     with Pool(cpu_count()) as p:
         p.map(check_idx, urls)
+    print('Done!', round(time.time() - start))
