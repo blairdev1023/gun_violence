@@ -10,7 +10,7 @@ def open_soup(url):
     '''
     using the url requests the page and returns the soup and the status code
     '''
-    idx = int(url[-6:])
+    idx = int(url.split('/')[-1])
     try:
         printout(f'Trying a request on {idx}')
         page = requests.get(url, timeout=10)
@@ -63,7 +63,7 @@ def check_idx(url):
     '''
     main function, saves the index if it finds a page
     '''
-    idx = int(url[-6:])
+    idx = int(url.split('/')[-1])
     soup, status_code = open_soup(url)
     if status_code == 200:
         save(idx)
@@ -77,7 +77,8 @@ def check_idx(url):
 if __name__ == '__main__':
     start = time.time()
     urls = []
-    for idx in range(890000, 900000):
+    for idx in range(1, 100000):
+        idx = int(idx)
         urls.append(f'https://www.gunviolencearchive.org/incident/{idx}')
     with Pool(cpu_count()) as p:
         p.map(check_idx, urls)
