@@ -78,7 +78,6 @@ if __name__ == '__main__':
     start = time.time()
     urls = []
     for idx in range(1, 100000):
-        idx = int(idx)
         urls.append(f'https://www.gunviolencearchive.org/incident/{idx}')
     with Pool(cpu_count()) as p:
         p.map(check_idx, urls)
