@@ -7,7 +7,7 @@ import pandas as pd
 
 def main_controller(lower, upper):
     '''
-    Controls the script. First it will fetch the indices between the specified bounds - inclusively. Then for each index gets it page returns its soup (soup_opener), retrieves the data available from the soup (soup_eater), and writes that string to a csv (csv_writer, duh...)
+    Controls the script. First it will fetch the indices between the specified bounds - inclusively. Then for each index gets it page returns its soup (soup_opener), retrieves the data available from the soup (soup_eater), and writes that string to a csv (soup_pooper)
     '''
     ids = pd.read_csv('../data/assembled_ids.csv')['ids']
 
@@ -23,35 +23,55 @@ def main_controller(lower, upper):
 
 def soup_opener(url):
     '''
-    Returns the soup from the url
+    Rescursive controller for opening the soup. A lot of the time the first scrape doesn't work so it needs to be done until it is!
+
+    Returns soup
+    '''
+    idx = int(url.split('/')[-1])
+    soup, status_code = opener(url)
+    if status_code == 200:
+        return soup
+    else:
+        return soup_opener(url)
+
+def opener(url):
+    '''
+    Returns the soup and status code from the url
     '''
     idx = int(url.split('/')[-1])
     try:
         page = requests.get(url, timeout=10)
-        return BeautifulSoup(page.text, 'html.parser')
+        return BeautifulSoup(page.text, 'html.parser'), page.status_code
     except requests.exceptions.SSLError:
         now = round(time.time() - start)
         print(f'SSLError on {idx}, trying again......', now)
-        return open_soup(url)
+        return opener(url)
     except requests.exceptions.ChunkedEncodingError:
         now = round(time.time() - start)
         print(f'ChunkedEncodingError on {idx}, trying again...', now)
-        return open_soup(url)
+        return opener(url)
     except requests.exceptions.ConnectionError:
         now = round(time.time() - start)
         print(f'Oops! Lost Connection on {idx}, trying again...', now)
-        return open_soup(url)
+        return opener(url)
     except requests.exceptions.ReadTimeout:
-        return open_soup(url)
+        return opener(url)
 
 def soup_eater(soup):
     '''
     Main parser of the soup. Checks to see what is in the soup (gun types, notes, etc...) and tasks helper functions with extracting the data. All the helper functions this calls start with "scrape"
     '''
+    main_divs = soup.find('div', {'id': 'block-system-main'}).select('div')
+
     h2s = [str(h2) for h2 in soup.find_all('h2')]
     h2s = [h2.replace('<h2>', '').replace('</h2>', '') for h2 in h2s]
+
     data = scrape_header(soup)
     data += scrape_location(soup)
+    if 'Notes' in h2s:
+        data += scrape_notes(main_divs)
+    else:
+        data += ','
 
     return data
 
@@ -68,7 +88,7 @@ def scrape_header(soup):
 
 def scrape_location(soup):
     '''
-    parser calls this to scrape the location
+    soup_eater calls this to scrape the location data
 
     Specifically it gets:
         * Misc. location notes
@@ -120,11 +140,14 @@ def scrape_characteristics():
     '''
     pass
 
-def scrape_notes():
+def scrape_notes(main_divs):
     '''
     parser calls this to scrape the hand written notes of the incident
     '''
-    pass
+    for div in main_divs:
+        if '<h2>Notes</h2>' in [str(h2) for h2 in div.find_all('h2')]:
+            note_text = div.find('p').text
+    return note_text.replace(',', ';')
 
 def scrape_gun_types():
     '''
@@ -139,7 +162,7 @@ def scrape_sources():
     '''
     pass
 
-def csv_writer():
+def soup_pooper():
     '''
     Takes in the entire line as a string and writes it to the filename
 
@@ -166,5 +189,5 @@ def csv_writer():
 
 if __name__ == '__main__':
     lower =200000
-    upper =200100
+    upper =200500
     main_controller(lower, upper)
