@@ -61,15 +61,23 @@ def soup_eater(soup):
     '''
     Main parser of the soup. Checks to see what is in the soup (gun types, notes, etc...) and tasks helper functions with extracting the data. All the helper functions this calls start with "scrape"
     '''
+    # This div has all the data in it
     main_divs = soup.find('div', {'id': 'block-system-main'}).select('div')
-
-    h2s = [str(h2) for h2 in soup.find_all('h2')]
-    h2s = [h2.replace('<h2>', '').replace('</h2>', '') for h2 in h2s]
+    # Headers to check what's in page
+    h2s = [h2.text for h2 in soup.find_all('h2')]
 
     data = scrape_header(soup)
     data += scrape_location(soup)
+    if 'Incident Characteristics' in h2s:
+        data += scrape_characteristics(main_divs)
+    else:
+        data += ','
     if 'Notes' in h2s:
         data += scrape_notes(main_divs)
+    else:
+        data += ','
+    if 'Sources' in h2s:
+        data += scrape_sources(main_divs)
     else:
         data += ','
 
@@ -81,8 +89,7 @@ def scrape_header(soup):
 
     The only data point retrieved is the date
     '''
-    tag = soup.find_all('h1')[-1]
-    tag = str(tag).replace('<h1>', '').replace('</h1>', '')
+    tag = soup.find_all('h1')[-1].text
     date = tag.split()[0]
     return date + ','
 
@@ -98,8 +105,7 @@ def scrape_location(soup):
     '''
     n_spans = len(soup.find_all('span')) # IMPORTANT!
     # if n_spans is 7 then no location description
-    spans = [str(span) for span in soup.find_all('span')]
-    spans = [span.replace('<span>','').replace('</span>','') for span in spans]
+    spans = [span.text for span in soup.find_all('span')]
 
     # City/State
     city = spans[-3].split(', ')[0]
@@ -129,7 +135,7 @@ def scrape_participants():
     '''
     pass
 
-def scrape_characteristics():
+def scrape_characteristics(main_divs):
     '''
     parser calls this to scrape all of the characteristics about the
     incident. Examples: "Shot - Wounded/Injured", "Assault weapon",
@@ -138,16 +144,20 @@ def scrape_characteristics():
     I have noticed these characteristics are inconsistent at best so take them
     with a lot of salt.
     '''
-    pass
+    for div in main_divs:
+        div_h2s = [h2.text for h2 in div.find_all('h2')]
+        if 'Incident Characteristics' in div_h2s:
+            list_items = [li.text for li in div.find_all('li')]
+    return '||'.join(list_items) + ','
 
 def scrape_notes(main_divs):
     '''
     parser calls this to scrape the hand written notes of the incident
     '''
     for div in main_divs:
-        if '<h2>Notes</h2>' in [str(h2) for h2 in div.find_all('h2')]:
+        if 'Notes' in [h2.text for h2 in div.find_all('h2')]:
             note_text = div.find('p').text
-    return note_text.replace(',', ';')
+    return note_text.replace(',', ';') + ','
 
 def scrape_gun_types():
     '''
@@ -156,13 +166,18 @@ def scrape_gun_types():
     '''
     pass
 
-def scrape_sources():
+def scrape_sources(main_divs):
     '''
     parser calls this to scrape the urls of the news links
     '''
-    pass
+    for div in main_divs:
+        if 'Sources' in [h2.text for h2 in div.find_all('h2')]:
+            sources = []
+            for link in div.find_all('a'):
+                sources.append(link.get('href'))
+    return '||'.join(sources) + ','
 
-def soup_pooper():
+def soup_pooper(row):
     '''
     Takes in the entire line as a string and writes it to the filename
 
@@ -174,17 +189,17 @@ def soup_pooper():
     # checks if the csv exists
     col_names = ['incident_id', 'date', 'city', 'state', 'address',
         'location_description',  'lat', 'lon', 'n_killed', 'n_injuered',
-        'gva_url', 'gun_types', 'incident_characteristics',  'notes',
+        'gun_types', 'incident_characteristics',  'notes',
         'participant_type', 'participant_status', 'participant_name',
         'participant_age', 'participant_age_group', 'participant_gender',
         'sources']
     if filename not in os.listdir(pathname):
         with open(pathname+filename, 'w') as f:
-            f.write('ids')
+            f.write(','.join(col_names))
             f.write('\n')
     # this is the save
     with open(pathname+filename, 'a') as f:
-        f.write(str(idx))
+        f.write(row)
         f.write('\n')
 
 if __name__ == '__main__':
