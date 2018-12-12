@@ -76,6 +76,10 @@ def soup_eater(soup):
         data += scrape_notes(main_divs)
     else:
         data += ','
+    if 'Participants' in h2s:
+        data += scrape_participants(main_divs)
+    else:
+        data += ',,,,,,'
     if 'Sources' in h2s:
         data += scrape_sources(main_divs)
     else:
@@ -126,14 +130,33 @@ def scrape_location(soup):
 
     return data
 
-def scrape_participants():
+def scrape_participants(main_divs):
     '''
     parser calls this to scrape information about the participant(s)
 
     For each participant, the scraper will gather type and status and look for
     additional data points like name, age, age group, and gender
     '''
-    pass
+    # Get the list items with the data
+    for div in main_divs:
+        div_h2s = [h2.text for h2 in div.find_all('h2')]
+        if 'Participants' in div_h2s:
+            list_items = [li.text for li in div.find_all('li')]
+
+    # Pull data out of list_items
+    cols = ['type', 'status', 'name', 'age', 'age_group', 'gender']
+    data = [['' for col in cols]]
+    part_df = pd.DataFrame(data=data, columns=cols)
+    for item in list_items:
+        trait = item.split(': ')[0].lower().replace(' ', '_')
+        if trait == 'relationship': # opting not to scrape this data, too sparse
+            continue
+        value = item.split(': ')[1] + '||'
+        part_df[trait] += value
+
+    data = ','.join(part_df.values.astype(str)[0])
+
+    return data + ','
 
 def scrape_characteristics(main_divs):
     '''
