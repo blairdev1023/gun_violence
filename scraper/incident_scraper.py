@@ -85,8 +85,7 @@ def soup_eater(soup):
     if 'Participants' in h2s:
         data += scrape_participants(main_divs)
     else:
-        data += ',,,,,,'
-    data += ',,' # This is temp, for n_killed and n_injured
+        data += ',,,,,,,,'
     if 'Sources' in h2s:
         data += scrape_sources(main_divs)
     else:
@@ -159,12 +158,21 @@ def scrape_participants(main_divs):
         if trait == 'relationship': # opting not to scrape this data, too sparse
             continue
         value = item.split(': ')[1]
+        value = value.replace(',', ';')
         if part_df[trait][0] != '':
             value = '||' + value
         part_df[trait] += value
 
+    # Count number of injured and killed
+    statuses = part_df['status'].iloc[0].split('||')
+    statuses = [status.lower() for status in statuses]
+    n_killed = str(statuses.count('killed'))
+    n_injured = str(statuses.count('injured'))
+
+    # Assemble row
     data = part_df.values.astype(str)[0]
     data = ','.join(data) + ','
+    data = n_killed + ',' + n_injured + ',' + data
 
     return data
 
@@ -245,7 +253,7 @@ def soup_pooper(row):
     pathname = '../data/'
     filename = 'id_data.csv'
     # checks if the csv exists
-    col_names = ['incident_id', 'date', 'location_description', 'address', 'city', 'state', 'lat', 'lon', 'gun_types', 'gun_stolen', 'incident_characteristics',  'notes', 'participant_type', 'participant_status', 'participant_name', 'participant_age', 'participant_age_group', 'participant_gender', 'n_killed', 'n_injured', 'sources']
+    col_names = ['incident_id', 'date', 'location_description', 'address', 'city', 'state', 'lat', 'lon', 'gun_types', 'gun_stolen', 'incident_characteristics',  'notes', 'n_killed', 'n_injured', 'participant_type', 'participant_status', 'participant_name', 'participant_age', 'participant_age_group', 'participant_gender', 'sources']
     if filename not in os.listdir(pathname):
         with open(pathname+filename, 'w') as f:
             f.write(','.join(col_names))
