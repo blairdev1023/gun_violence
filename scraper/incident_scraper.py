@@ -241,7 +241,9 @@ def scrape_sources(main_divs):
             sources = []
             for link in div.find_all('a'):
                 sources.append(link.get('href'))
-    return '||'.join(sources) + ','
+    # Wrap it in quotes, otherwise the commas will cause problems
+    sources = ['"' + source + '"' for source in sources]
+    return '||'.join(sources)
 
 def soup_pooper(row):
     '''
