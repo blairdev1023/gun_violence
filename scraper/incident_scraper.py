@@ -16,10 +16,12 @@ def main_controller(lower, upper):
 
     for id in ids:
         print(id)
+        row = str(id) + ','
         url = f'https://www.gunviolencearchive.org/incident/{id}'
         soup = soup_opener(url)
-        row = soup_eater(soup)
-        print(row)
+        row += soup_eater(soup)
+        # print(row)
+        soup_pooper(row)
 
 def soup_opener(url):
     '''
@@ -67,7 +69,7 @@ def soup_eater(soup):
     h2s = [h2.text for h2 in soup.find_all('h2')]
 
     data = scrape_header(soup)
-    data += scrape_location(soup)
+    data += scrape_location(main_divs)
     if 'Guns Involved' in h2s:
         data += scrape_guns(main_divs)
     else:
@@ -84,6 +86,7 @@ def soup_eater(soup):
         data += scrape_participants(main_divs)
     else:
         data += ',,,,,,'
+    data += ',,' # This is temp, for n_killed and n_injured
     if 'Sources' in h2s:
         data += scrape_sources(main_divs)
     else:
@@ -101,7 +104,7 @@ def scrape_header(soup):
     date = tag.split()[0]
     return date + ','
 
-def scrape_location(soup):
+def scrape_location(main_divs):
     '''
     soup_eater calls this to scrape the location data
 
@@ -111,25 +114,25 @@ def scrape_location(soup):
         * City & State
         * Lat/Lon
     '''
-    n_spans = len(soup.find_all('span')) # IMPORTANT!
-    # if n_spans is 7 then no location description
-    spans = [span.text for span in soup.find_all('span')]
-
-    # City/State
-    city = spans[-3].split(', ')[0]
-    state = spans[-3].split(', ')[1]
-    data = city + ',' + state  + ','
+    for div in main_divs:
+        div_h2s = [h2.text for h2 in div.find_all('h2')]
+        if 'Location' in div_h2s:
+            spans = [span.text for span in div.find_all('span')]
 
     # Loc. Description
-    if n_spans == 7:
-        data += ','
+    if len(spans) == 4:
+        data = spans[0] + ','
     else:
-        data = spans[3] + ','
+        data = ','
     # Address
-    data += spans[-4] + ','
+    data += spans[-3] + ','
+    # City/State
+    city = spans[-2].split(', ')[0]
+    state = spans[-2].split(', ')[1]
+    data += city + ',' + state  + ','
     # Lat/Lon
-    lat = spans[-2].split()[1].strip(',')
-    lon = spans[-2].split()[2]
+    lat = spans[-1].split()[1].strip(',')
+    lon = spans[-1].split()[2]
     data += lat + ',' + lon + ','
 
     return data
@@ -206,7 +209,9 @@ def scrape_characteristics(main_divs):
         div_h2s = [h2.text for h2 in div.find_all('h2')]
         if 'Incident Characteristics' in div_h2s:
             list_items = [li.text for li in div.find_all('li')]
-    return '||'.join(list_items) + ','
+    list_items = '||'.join(list_items)
+    list_items = list_items.replace(',', ';')
+    return list_items + ','
 
 def scrape_notes(main_divs):
     '''
@@ -215,7 +220,9 @@ def scrape_notes(main_divs):
     for div in main_divs:
         if 'Notes' in [h2.text for h2 in div.find_all('h2')]:
             note_text = div.find('p').text
-    return note_text.replace(',', ';') + ','
+            note_text = note_text.replace(',', ';')
+            note_text = note_text.replace('\n', '')
+    return note_text + ','
 
 def scrape_sources(main_divs):
     '''
@@ -238,12 +245,7 @@ def soup_pooper(row):
     pathname = '../data/'
     filename = 'id_data.csv'
     # checks if the csv exists
-    col_names = ['incident_id', 'date', 'city', 'state', 'address',
-        'location_description',  'lat', 'lon', 'n_killed', 'n_injuered',
-        'gun_types', 'gun_stolen', 'incident_characteristics',  'notes',
-        'participant_type', 'participant_status', 'participant_name',
-        'participant_age', 'participant_age_group', 'participant_gender',
-        'sources']
+    col_names = ['incident_id', 'date', 'location_description', 'address', 'city', 'state', 'lat', 'lon', 'gun_types', 'gun_stolen', 'incident_characteristics',  'notes', 'participant_type', 'participant_status', 'participant_name', 'participant_age', 'participant_age_group', 'participant_gender', 'n_killed', 'n_injured', 'sources']
     if filename not in os.listdir(pathname):
         with open(pathname+filename, 'w') as f:
             f.write(','.join(col_names))
