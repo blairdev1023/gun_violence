@@ -68,6 +68,10 @@ def soup_eater(soup):
 
     data = scrape_header(soup)
     data += scrape_location(soup)
+    if 'Guns Involved' in h2s:
+        data += scrape_guns(main_divs)
+    else:
+        data += ',,'
     if 'Incident Characteristics' in h2s:
         data += scrape_characteristics(main_divs)
     else:
@@ -151,12 +155,43 @@ def scrape_participants(main_divs):
         trait = item.split(': ')[0].lower().replace(' ', '_')
         if trait == 'relationship': # opting not to scrape this data, too sparse
             continue
-        value = item.split(': ')[1] + '||'
+        value = item.split(': ')[1]
+        if part_df[trait][0] != '':
+            value = '||' + value
         part_df[trait] += value
 
-    data = ','.join(part_df.values.astype(str)[0])
+    data = part_df.values.astype(str)[0]
+    data = ','.join(data) + ','
 
-    return data + ','
+    return data
+
+def scrape_guns(main_divs):
+    '''
+    parser calls this to scrape the type and stolen status of each gun
+    recorded
+    '''
+    # Get the list items with the data
+    for div in main_divs:
+        div_h2s = [h2.text for h2 in div.find_all('h2')]
+        if 'Guns Involved' in div_h2s:
+            list_items = [li.text for li in div.find_all('li')]
+
+    # Pull data out of list_items
+    cols = ['type', 'stolen']
+    data = [['' for col in cols]]
+    gun_df = pd.DataFrame(data=data, columns=cols)
+    for item in list_items:
+        trait = item.split(': ')[0].lower().replace(' ', '_')
+        value = item.split(': ')[1]
+        if trait:
+            '||' + value
+        gun_df[trait] += value
+
+    data = gun_df.values.astype(str)[0]
+    data = ','.join(data) + ','
+
+    return data
+
 
 def scrape_characteristics(main_divs):
     '''
@@ -182,13 +217,6 @@ def scrape_notes(main_divs):
             note_text = div.find('p').text
     return note_text.replace(',', ';') + ','
 
-def scrape_gun_types():
-    '''
-    parser calls this to scrape the type and stolen status of each gun
-    recorded
-    '''
-    pass
-
 def scrape_sources(main_divs):
     '''
     parser calls this to scrape the urls of the news links
@@ -212,7 +240,7 @@ def soup_pooper(row):
     # checks if the csv exists
     col_names = ['incident_id', 'date', 'city', 'state', 'address',
         'location_description',  'lat', 'lon', 'n_killed', 'n_injuered',
-        'gun_types', 'incident_characteristics',  'notes',
+        'gun_types', 'gun_stolen', 'incident_characteristics',  'notes',
         'participant_type', 'participant_status', 'participant_name',
         'participant_age', 'participant_age_group', 'participant_gender',
         'sources']
